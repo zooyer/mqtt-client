@@ -1,29 +1,159 @@
-﻿#include "connectionwidget.h"
-#include "ui_connectionwidget.h"
+﻿#include "mqttwidget.h"
+#include "ui_mqttwidget.h"
+#include "tabledelegate.h"
 #include "messageviewer.h"
-#include <QDebug>
-#include <QDateTime>
-#include <QItemDelegate>
-#include <QFileDialog>
-#include <QStringList>
+
+#include <QNetworkRequest>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QEventLoop>
+#include <QTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QUuid>
-#include <QSslSocket>
+#include <QSsl>
 #include <QtMqtt/QMqttMessage>
 #include <QtMqtt/QMqttSubscription>
 
-ConnectionWidget::ConnectionWidget(QWidget *parent) :
+class MqttRequest
+{
+public:
+    QString deviceSK;
+    QString deviceID;
+    QString deviceDesc;
+
+    void fromParams(MqttParams &params) noexcept(false)
+    {
+        qDebug() << "device sk:" << params.deviceSK;
+        QFile file(params.deviceSK);
+        if (!file.open(QFile::ReadOnly | QFile::Text))
+            throw MqttException(file.errorString());
+        deviceSK = QString(file.readAll());
+        deviceID = params.deviceID;
+        deviceDesc = "";
+        file.close();
+    }
+
+    QByteArray toJson()
+    {
+        QJsonObject obj;
+        obj.insert("device_sk", deviceSK);
+        obj.insert("device_id", deviceID);
+        obj.insert("device_desc", deviceDesc);
+
+        QJsonDocument doc(obj);
+
+        return doc.toJson();
+    }
+};
+
+class MqttResponse
+{
+public:
+    // status code and status msg.
+    int     code;
+    QString message;
+
+    int     companyID;
+    QString clientID;
+    QString broker;
+    int     port;
+    QString deviceID;
+    QString secretKey;
+    int     keepAlive;
+    bool    cleanSession;
+    qint64  timestamp;
+
+    void fromJson(QByteArray &data) noexcept(false) {
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(data, &err);
+        if (err.error != QJsonParseError::NoError)
+            throw MqttException(err.errorString());
+
+        if (!doc.isObject())
+            throw MqttException("json not is object.");
+
+        QJsonObject obj = doc.object();
+        code         = obj["code"].toInt();
+        message      = obj["message"].toString();
+        companyID    = obj["company_id"].toInt();
+        clientID     = obj["client_id"].toString();
+        broker       = obj["broker"].toString();
+        port         = obj["port"].toInt();
+        deviceID     = obj["device_id"].toString();
+        secretKey    = obj["secret_key"].toString();
+        keepAlive    = obj["keep_alive"].toInt();
+        cleanSession = obj["clean_session"].toBool();
+        timestamp    = obj["timestamp"].toVariant().toLongLong();
+    }
+};
+
+int post(const QByteArray &msg, QString method, QString url, QByteArray &response) noexcept(false)
+{
+    QUrl Url = QUrl(url);
+    QNetworkRequest request(Url);
+    QNetworkAccessManager manager;
+    QNetworkReply *reply = nullptr;
+
+    request.setHeader(QNetworkRequest::ContentTypeHeader,QVariant("application/json"));
+
+    if (method.toUpper() == "POST")
+        reply = manager.post(request, msg);
+    else
+        reply = manager.get(request);
+
+    qDebug() << "port msg:" << msg.data();
+    qDebug() << "port url:" << url;
+
+    QEventLoop loop;
+    QTimer timer;
+    bool timeout = false;
+
+    QObject::connect(&manager, &QNetworkAccessManager::finished, [&loop](){
+        loop.quit();
+    });
+    QObject::connect(&timer, &QTimer::timeout, [&loop, &timeout](){
+        timeout = true;
+        loop.quit();
+    });
+
+    reply->deleteLater();
+    timer.start(2000);
+    loop.exec();
+    qDebug() << "wait http response loop exit...";
+    if (timeout) {
+        throw MqttException("http post request timeout");
+    }
+
+    response = reply->readAll();
+    qDebug() << "response data:" << response;
+
+    if (reply->error() != QNetworkReply::NoError) {
+        qDebug() << "response code:" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        qDebug() << "server response error:" << reply->errorString();
+        throw MqttException(response.length() == 0 ? reply->errorString() : response);
+    }
+
+    return reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+}
+
+MqttWidget::MqttWidget(QWidget *parent) :
     QWidget(parent),
-    ui(new Ui::ConnectionWidget)
+    ui(new Ui::MqttWidget)
 {
     ui->setupUi(this);
 
+    // init mqtt
+    m_params = new MqttParams;
+    m_request = new MqttRequest;
+    m_response = new MqttResponse;
     m_client = new QMqttClient;
 
     // connection button init.
     m_menu = new QMenu(ui->historyTable);
     m_clear = new QAction(QIcon(":/image/clear.gif"), tr("Clear"), m_menu);
     m_menu->addAction(m_clear);
-
 
     // set history table style.
     ui->historyTable->verticalHeader()->setHidden(true);
@@ -38,18 +168,6 @@ ConnectionWidget::ConnectionWidget(QWidget *parent) :
     ui->historyTable->setColumnWidth(3, 80);
     ui->historyTable->setColumnWidth(4, 80);
     ui->historyTable->setColumnWidth(5, 200);
-
-    // set last message table style.
-    ui->lastTable->verticalHeader()->setHidden(true);
-    ui->lastTable->setContextMenuPolicy(Qt::CustomContextMenu);
-    //ui->lastTable->horizontalHeader()->setStretchLastSection(true);
-    ui->lastTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    ui->lastTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
-    ui->lastTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed);
-    ui->lastTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed);
-    ui->lastTable->setColumnWidth(2, 80);
-    ui->lastTable->setColumnWidth(3, 80);
-    ui->lastTable->setColumnWidth(4, 200);
 
 
     // set topics table view model.
@@ -68,7 +186,7 @@ ConnectionWidget::ConnectionWidget(QWidget *parent) :
 
     // set topics table header.
     QStringList headerList;
-    headerList << "" << tr("Topic") << tr("QoS");
+    headerList << "" << tr("topic") << tr("qos");
     m_model->setHorizontalHeaderLabels(headerList);
     ui->topics->verticalHeader()->setVisible(false);
     ui->topics->horizontalHeader()->setStretchLastSection(true);
@@ -77,81 +195,115 @@ ConnectionWidget::ConnectionWidget(QWidget *parent) :
     QosDelegate *qosDelegate = new QosDelegate(ui->topics);
     ui->topics->setItemDelegateForColumn(2, qosDelegate);
 
-
-    // set HA servers table style.
-    ui->servers->verticalHeader()->setHidden(true);
-    ui->servers->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    ui->servers->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
-
     // init signal connect.
     initConnect();
 
-    // init mqtt events.
+    // init  mqtt events.
     initMqttEvents();
 
-    // init status
+    // init status.
     initStatus();
-
-    // init tab order
-    initTabOrder();
-
-    // test
-    //addHistory("add", "tttt", "sss", "aa", "aaaa");
-    //addHistory("add", "tttt", "sss", "aa", "aaaa");
-    //addHistory("add", "tttt", "sss", "aa", "aaaa");
-//    setLastMessage("tttt", "sss", "aa", "aaaa");
-//    setLastMessage("tttt", "sss123", "aa", "aaaa");
 }
 
-void ConnectionWidget::initConnect()
+MqttWidget::~MqttWidget()
 {
+    if (m_clear != nullptr)
+        delete m_clear;
+    if (m_menu != nullptr)
+        delete m_menu;
+    if (m_model != nullptr)
+        delete m_model;
+    if (m_client != nullptr) {
+        m_client->disconnectFromHost();
+        delete m_client;
+    }
+
+    if (m_params != nullptr)
+        delete m_params;
+    if (m_request != nullptr)
+        delete m_request;
+    if (m_response != nullptr)
+        delete m_response;
+
+    delete ui;
+}
+
+void MqttWidget::initConnect()
+{
+    connect(ui->skBrowse, &QPushButton::clicked, [this](){
+        QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("*.sk;;*.*"), nullptr);
+        if (fileName.length() > 0)
+            ui->sk->setText(fileName);
+    });
     connect(ui->connect, &QPushButton::clicked, [this](){
         if (m_client->state() == QMqttClient::Connected) {
             return;
         }
-        QStringList uri = ui->uri->text().split(":");
-        if (uri.length() < 2 || uri.length() > 3) {
-            qDebug() << "uri error.";
+
+        m_params->server = ui->uri->text();
+        m_params->deviceID = ui->id->text();
+        m_params->deviceSK = ui->sk->text();
+
+        try {
+            m_request->fromParams(*m_params);
+            *m_response = doRegister(*m_request);
+        } catch (MqttException &e) {
+            qWarning() << "register error:" << e.errorString();
+            addHistory(tr("Error"), "", e.errorString(), "", "");
             return;
-        } else if (uri.length() == 2) {
-            m_client->setHostname(uri[0]);
-            m_client->setPort(uri[1].toUShort());
+        }
+
+        qDebug() << "broker:" << m_response->broker;
+
+        QString broker = m_response->broker;
+        m_client->setHostname(broker.replace("tcp://", "").replace("ssl://", ""));
+        m_client->setPort(static_cast<quint16>(m_response->port));
+        m_client->setCleanSession(m_response->cleanSession);
+        m_client->setClientId(m_response->clientID);
+        m_client->setKeepAlive(static_cast<quint16>(m_response->keepAlive));
+        m_client->setUsername(m_response->deviceID);
+        m_client->setPassword(m_response->secretKey.toLocal8Bit());
+
+        if (m_response->broker.contains("ssl")) {
+            qDebug() << "ssl connection.";
+
+            QSslConfiguration config;
+
+            QList<QSslCertificate> certs = QSslCertificate::fromPath("server.crt");
+            qDebug() << "certs count:" << certs.length();
+            if (certs.length() > 0)
+                qDebug() << "certs[0] : " << certs[0].toPem();
+
+            config.setCaCertificates(certs);
+            config.setPeerVerifyMode(QSslSocket::VerifyNone);
+            config.setProtocol(QSsl::AnyProtocol);
+
+            QSslSocket *ssl = new QSslSocket;
+            ssl->setSslConfiguration(config);
+//            connect(ssl, &QSslSocket::encrypted, m_client, &QMqttClient::connected);
+//            connect(ssl, &QSslSocket::disconnected, m_client, &QMqttClient::disconnected);
+            connect(ssl, &QSslSocket::encrypted, [this,ssl](){
+                qDebug() << "ssl connected.";
+                m_client->setTransport(ssl, QMqttClient::AbstractSocket);
+                //m_client->connectToHost();
+                //m_client->connected();
+            });
+            connect(ssl, &QSslSocket::disconnected, [this](){
+                qDebug() << "ssl disconnected";
+                m_client->disconnected();
+            });
+
+//            ssl->setCaCertificates(certs);
+//            ssl->setPeerVerifyMode(QSslSocket::VerifyNone);
+//            ssl->setProtocol(QSsl::AnyProtocol);
+            ssl->connectToHostEncrypted(m_client->hostname(), m_client->port());
+
+
         } else {
-            m_client->setHostname(uri[1].replace("//", ""));
-            m_client->setPort(uri[2].toUShort());
-        }
-        m_client->setClientId(ui->id->text());
-        m_client->setCleanSession(ui->cleanSession->isChecked());
-        m_client->setKeepAlive(static_cast<quint16>(ui->keepAlive->value()));
-
-        // ssl
-        if (ui->ssl->isChecked()) {
-//            QSslSocket ssl;
-//            ssl.setPeerVerifyMode(QSslSocket::VerifyNone);
-//            QSslConfiguration config;
-//            m_client->setTransport(&ssl, QMqttClient::AbstractSocket);
-//            m_client->setConnectionProperties(QMqttConnectionProperties());
-            qDebug() << "not support ssl.";
-        }
-        // HA
-        if (ui->ha->isChecked()) {
-            qDebug() << "not support HA.";
-        }
-        // login
-        if (ui->login->isChecked()) {
-            m_client->setUsername(ui->username->text());
-            m_client->setPassword(ui->password->text());
-        }
-        // lwt
-        if (ui->lwt->isChecked()) {
-            m_client->setWillTopic(ui->lwtTopic->text());
-            m_client->setWillQoS(static_cast<quint8>(ui->lwtQos->currentIndex()));
-            m_client->setWillRetain(ui->lwtRetained->isChecked());
-            m_client->setWillMessage(ui->lwtMessage->toPlainText().toLocal8Bit());
+            qDebug() << "tcp connection.";
+            m_client->connectToHost();
         }
 
-        m_client->connectToHost();
-        //m_client->connectToHostEncrypted();
         qDebug() << "connect to host:" << m_client->hostname() << "port:" << m_client->port();
     });
     connect(ui->disconnect, &QPushButton::clicked, [this](){
@@ -204,18 +356,19 @@ void ConnectionWidget::initConnect()
                 if (m_model->item(i)->checkState() == Qt::Checked) {
                     QString topic = m_model->item(i, 1)->data(Qt::EditRole).toString();
                     quint8 qos = static_cast<quint8>(m_model->item(i, 2)->data(Qt::EditRole).toString().toUShort());
-                    auto subscription  = m_client->subscribe(QMqttTopicFilter(topic), qos);
+                    auto subscription = m_client->subscribe(QMqttTopicFilter(topic), qos);
                     if (!subscription) {
                         qWarning() << "Subscribe Error:" << "Could not subscribe. Is there a valid connection?";
                         addHistory("Error", topic, "Could not subscribe. Is there a valid connection?", QString("%1").arg(qos), "");
                     } else {
-                        qDebug() << "subscribe topic:" << topic << "qos:" << qos;
-                        addHistory(tr("Subscribe"), topic, "", QString("%1").arg(qos), "");
                         connect(subscription, &QMqttSubscription::messageReceived, [this](QMqttMessage msg){
-                            qDebug() << "received message, topic:" << msg.topic().name() << "payload:" << msg.payload();
+                            qDebug() << "subscription" << msg.topic().name() << "received:" << msg.payload();
                             addHistory(tr("Received"), msg.topic().name(), msg.payload(), QString("%1").arg(msg.qos()), msg.retain() ? "Yes" : "No");
                         });
+                        qDebug() << "subscribe topic:" << topic << "qos:" << qos;
                     }
+
+                    //m_client->subscribe(QMqttTopicFilter(ui->topic->text()), (quint8)ui->qos->currentIndex());
                 }
             }
         }
@@ -225,9 +378,9 @@ void ConnectionWidget::initConnect()
             for (int i=0; i<m_model->rowCount(); i++) {
                 if (m_model->item(i)->checkState() == Qt::Checked) {
                     QString topic = m_model->item(i, 1)->data(Qt::EditRole).toString();
-                    qDebug() << "unsubscribe topic:" << topic;
                     m_client->unsubscribe(QMqttTopicFilter(topic));
-                    addHistory("Unsubscribe", topic, "", "", "");
+                    addHistory(tr("Unsubscribe"), topic, "", "", "");
+                    qDebug() << "unsubscribe topic:" << topic;
                 }
             }
         }
@@ -271,8 +424,8 @@ void ConnectionWidget::initConnect()
             quint8 qos = static_cast<quint8>(ui->qos->currentIndex());
             bool retained = ui->retained->isChecked();
             m_client->publish(QMqttTopicName(topic), message, qos, retained);
-            qDebug() << "publish topic:" << topic << "qos:" << qos << "retained:" << retained << "message:" << message;
             addHistory(tr("Publish"), topic, message, QString("%1").arg(qos), retained ? "Yes" : "No");
+            qDebug() << "publish topic:" << topic << "qos:" << qos << "retained:" << retained << "message:" << message;
         }
     });
 
@@ -290,17 +443,6 @@ void ConnectionWidget::initConnect()
     connect(ui->historyTable, &QWidget::customContextMenuRequested, [this](){
         m_menu->exec(QCursor::pos());
     });
-    connect(ui->lastTable, &QTableWidget::doubleClicked, [this](const QModelIndex &index){
-        MessageViewer msg(this);
-        msg.setEvent(tr("Last Message"));
-        msg.setTopic(ui->lastTable->item(index.row(), 0)->text());
-        msg.setMessage(ui->lastTable->item(index.row(), 1)->text());
-        msg.setQos(ui->lastTable->item(index.row(), 2)->text());
-        msg.setRetained(ui->lastTable->item(index.row(), 3)->text());
-        msg.setTime(ui->lastTable->item(index.row(), 4)->text());
-        msg.exec();
-    });
-
 
     connect(m_clear, &QAction::triggered, [this](){
         qDebug() << "clicked history clear button.";
@@ -308,121 +450,9 @@ void ConnectionWidget::initConnect()
             ui->historyTable->removeRow(0);
         }
     });
-
-
-    connect(ui->ssl, &QCheckBox::stateChanged, [this](){
-        bool enabledFlag = false;
-        if (ui->ssl->isChecked()) {
-            enabledFlag = true;
-        }
-        ui->key->setEnabled(enabledFlag);
-        ui->keyPassword->setEnabled(enabledFlag);
-        ui->keyBrowse->setEnabled(enabledFlag);
-        ui->trust->setEnabled(enabledFlag);
-        ui->trustPassword->setEnabled(enabledFlag);
-        ui->trustBrowse->setEnabled(enabledFlag);
-    });
-    connect(ui->ha, &QCheckBox::stateChanged, [this](){
-        bool enabledFlag = false;
-        if (ui->ha->isChecked()) {
-            enabledFlag = true;
-        }
-        ui->haAdd->setEnabled(enabledFlag);
-        if (!ui->ha->isChecked() || (ui->ha->isChecked() && ui->servers->rowCount() > 0)) {
-            ui->haDelete->setEnabled(enabledFlag);
-            ui->haClean->setEnabled(enabledFlag);
-        }
-        ui->servers->setEnabled(enabledFlag);
-    });
-    connect(ui->lwt, &QCheckBox::stateChanged, [this](){
-        bool enabledFlag = false;
-        if (ui->lwt->isChecked()) {
-            enabledFlag = true;
-        }
-        ui->lwtTopic->setEnabled(enabledFlag);
-        ui->lwtQos->setEnabled(enabledFlag);
-        ui->lwtRetained->setEnabled(enabledFlag);
-        ui->lwtHex->setEnabled(enabledFlag);
-        ui->lwtMessage->setEnabled(enabledFlag);
-    });
-    connect(ui->login, &QCheckBox::stateChanged, [this](){
-        bool enabledFlag = false;
-        if (ui->login->isChecked()) {
-            enabledFlag = true;
-        }
-        ui->username->setEnabled(enabledFlag);
-        ui->password->setEnabled(enabledFlag);
-    });
-    connect(ui->persistence, &QCheckBox::stateChanged, [this](){
-        bool enabledFlag = false;
-        if (ui->persistence->isChecked()) {
-            enabledFlag = true;
-        }
-        ui->directory->setEnabled(enabledFlag);
-        ui->dirBrowse->setEnabled(enabledFlag);
-    });
-    connect(ui->dirBrowse, &QPushButton::clicked, [this](){
-        QString dirName = QFileDialog::getExistingDirectory(this, tr("Please select a directory for persistence store"));
-        if (dirName.length() > 0)
-            ui->directory->setText(dirName);
-    });
-    connect(ui->keyBrowse, &QPushButton::clicked, [this](){
-        QString fileName = QFileDialog::getOpenFileName(this, tr("Please select a directory for key store"), "", tr("*.p12;;*.pfx;;*.*"));
-        if (fileName.length() > 0)
-            ui->key->setText(fileName);
-    });
-    connect(ui->trustBrowse, &QPushButton::clicked, [this](){
-        QString fileName = QFileDialog::getOpenFileName(this, tr("Please select a directory for trust store"), "", tr("*.p12;;*.pfx;;*.*"));
-        if (fileName.length() > 0)
-            ui->trust->setText(fileName);
-    });
-    connect(ui->haAdd, &QPushButton::clicked, [this](){
-        qDebug() << "clicked HA add button.";
-        int rowIndex = ui->servers->rowCount();
-        ui->servers->insertRow(rowIndex);
-
-        ui->servers->setItem(rowIndex, 0, new QTableWidgetItem("tcp://localhost:1883"));
-
-        if (!ui->haDelete->isEnabled()) {
-            ui->haDelete->setEnabled(true);
-        }
-        if (!ui->haClean->isEnabled()) {
-            ui->haClean->setEnabled(true);
-        }
-    });
-    connect(ui->haDelete, &QPushButton::clicked, [this](){
-        qDebug() << "clicked HA del button.";
-        QModelIndex index = ui->servers->currentIndex();
-        if (index.isValid()) {
-            ui->servers->removeRow(index.row());
-            if (ui->servers->rowCount() == 0) {
-                ui->haDelete->setEnabled(false);
-                ui->haClean->setEnabled(false);
-            }
-        }
-    });
-    connect(ui->haClean, &QPushButton::clicked, [this](){
-        qDebug() << "clicked HA clean.";
-        while (ui->servers->rowCount() != 0) {
-            ui->servers->removeRow(0);
-        }
-        ui->haDelete->setEnabled(false);
-        ui->haClean->setEnabled(false);
-    });
-    connect(ui->lwtHex, &QPushButton::clicked, [this](){
-        if (ui->lwtHex->isChecked()) {
-            ui->lwtMessage->setPlainText(ui->lwtMessage->document()->toPlainText().toLocal8Bit().toHex().toUpper());
-            ui->lwtMessage->setReadOnly(true);
-            ui->lwtMessage->setStyleSheet("QPlainTextEdit{background:transparent;}");
-        } else {
-            ui->lwtMessage->setPlainText(QByteArray::fromHex(ui->message->document()->toPlainText().toLocal8Bit()));
-            ui->lwtMessage->setReadOnly(false);
-            ui->lwtMessage->setStyleSheet("");
-        }
-    });
 }
 
-void ConnectionWidget::initMqttEvents()
+void MqttWidget::initMqttEvents()
 {
     connect(m_client, &QMqttClient::connected, [this](){
         qDebug() << "client connected.";
@@ -461,75 +491,28 @@ void ConnectionWidget::initMqttEvents()
         addHistory(tr("Error"), "", QString("%1").arg(error), "", "");
     });
 
-/*
-#ifndef QT_NO_SSL
-    connect(m_client, &QMqttClient::messageStatusChanged, [this](qint32 id, QMqtt::MessageStatus s, const QMqttMessageStatusProperties &properties){
-        qDebug() << "mqtt message changed:" << (quint8)s;
-        Q_UNUSED(id);
-        Q_UNUSED(properties);
-        switch (s) {
-        case QMqtt::MessageStatus::Unknown:
-
-            break;
-        case QMqtt::MessageStatus::Published:
-
-            break;
-        case QMqtt::MessageStatus::Acknowledged:
-
-            break;
-        case QMqtt::MessageStatus::Received:
-
-            break;
-        case QMqtt::MessageStatus::Released:
-
-            break;
-        case QMqtt::MessageStatus::Completed:
-
-            break;
-        default:
-            break;
-        }
-    });
-
-#endif
-*/
-
     connect(m_client, &QMqttClient::messageReceived, [this](const QByteArray &message, const QMqttTopicName &topic){
         qDebug() << "received message, topic:" << topic.name() << "payload:" << message;
-        //addHistory(tr("Received"), topic.name(), message, "", "");
-        //setLastMessage(topic.name(), message, "", "");
         Q_UNUSED(this);
+        //addHistory(tr("Received"), topic.name(), message, "", "");
     });
 
     connect(m_client, &QMqttClient::messageSent, [this](qint32 id){
         qDebug() << "send message id:" << id;
-        //addHistory(tr("Sent"), "", "", "", "");
         Q_UNUSED(this);
+        //addHistory(tr("Sent"), "", "", "", "");
     });
 }
 
-void ConnectionWidget::initStatus()
+void MqttWidget::initStatus()
 {
-    ui->uri->setText("tcp://localhost:1883");
+    ui->uri->setText("http://localhost:8200");
     QString uuid = QUuid::createUuid().toString().replace("{", "").replace("}", "");
     QStringList uuids = uuid.split("-");
     ui->id->setText("mqtt-" + uuids[uuids.length() - 1]);
     ui->state->setText(tr("Disconnected"));
 
     ui->hex->setChecked(false);
-    ui->cleanSession->setChecked(true);
-    ui->ssl->setChecked(false);
-    ui->ha->setChecked(false);
-    ui->lwt->setChecked(false);
-    ui->keepAlive->setValue(60);
-    ui->timeout->setValue(30);
-    ui->login->setChecked(false);
-    ui->persistence->setChecked(false);
-    ui->directory->setText(QCoreApplication::applicationDirPath());
-
-    // set history table and last message table current index is zero.
-    ui->tabWidget->setCurrentIndex(0);
-    ui->tabWidget_2->setCurrentIndex(0);
 
     ui->uri->setEnabled(true);
     ui->id->setEnabled(true);
@@ -549,39 +532,11 @@ void ConnectionWidget::initStatus()
     ui->file->setEnabled(false);
     ui->publish->setEnabled(false);
     ui->historyTable->setEnabled(true);
-    ui->lastTable->setEnabled(true);
-    ui->cleanSession->setEnabled(true);
-    ui->ssl->setEnabled(true);
-    ui->ha->setEnabled(true);
-    ui->lwt->setEnabled(true);
-    ui->keepAlive->setEnabled(true);
-    ui->timeout->setEnabled(true);
-    ui->login->setEnabled(true);
-    ui->username->setEnabled(false);
-    ui->password->setEnabled(false);
-    ui->persistence->setEnabled(true);
-    ui->directory->setEnabled(false);
-    ui->dirBrowse->setEnabled(false);
-    ui->key->setEnabled(false);
-    ui->keyBrowse->setEnabled(false);
-    ui->keyPassword->setEnabled(false);
-    ui->trust->setEnabled(false);
-    ui->trustBrowse->setEnabled(false);
-    ui->trustPassword->setEnabled(false);
-    ui->haAdd->setEnabled(false);
-    ui->haDelete->setEnabled(false);
-    ui->haClean->setEnabled(false);
-    ui->servers->setEnabled(false);
-    ui->lwtTopic->setEnabled(false);
-    ui->lwtQos->setEnabled(false);
-    ui->lwtRetained->setEnabled(false);
-    ui->lwtHex->setEnabled(false);
-    ui->lwtMessage->setEnabled(false);
 
     setOnlineStatus(false);
 }
 
-void ConnectionWidget::initTabOrder()
+void MqttWidget::initTabOrder()
 {
     setTabOrder(ui->uri, ui->id);
     setTabOrder(ui->id, ui->state);
@@ -601,7 +556,7 @@ void ConnectionWidget::initTabOrder()
     setTabOrder(ui->publish, ui->uri);
 }
 
-void ConnectionWidget::setOnlineStatus(bool flag)
+void MqttWidget::setOnlineStatus(bool flag)
 {
     ui->connect->setDisabled(flag);
     ui->uri->setDisabled(flag);
@@ -626,7 +581,7 @@ void ConnectionWidget::setOnlineStatus(bool flag)
     ui->publish->setEnabled(flag);
 }
 
-void ConnectionWidget::addHistory(QString event, QString topic, QString msg, QString qos, QString retain)
+void MqttWidget::addHistory(QString event, QString topic, QString msg, QString qos, QString retain)
 {
     int rowIndex = ui->historyTable->rowCount();
     ui->historyTable->insertRow(rowIndex);
@@ -643,36 +598,35 @@ void ConnectionWidget::addHistory(QString event, QString topic, QString msg, QSt
         ui->historyTable->item(rowIndex, i)->setTextAlignment(Qt::AlignHCenter|Qt::AlignVCenter);
 }
 
-void ConnectionWidget::setLastMessage(QString topic, QString msg, QString qos, QString retain)
+MqttResponse MqttWidget::doRegister(MqttRequest request) noexcept(false)
 {
-    qDebug() << "row count:" << ui->lastTable->rowCount();
-    if (ui->lastTable->rowCount() < 1) {
-        ui->lastTable->insertRow(0);
-        ui->lastTable->setRowHeight(0, 25);
-//        for (int i=0; i<5; i++)
-//            ui->lastTable->item(0, i)->setTextAlignment(Qt::AlignHCenter|Qt::AlignVCenter);
+    qDebug() << "request:" << request.toJson().data();
+    QString url = m_params->server;
+    if (!url.contains("http")) {
+        url = "http://" + url;
+    }
+    QStringList urls = url.split("//");
+    if (urls.length() < 2)
+        throw MqttException(QString("invalid url:") + url);
+    if (!urls.at(1).contains("/"))
+        url += "/device/register2.url";
+
+    qDebug() << "url:" << url;
+
+    QByteArray buf;
+    try {
+        int ret = post(request.toJson(), "POST", url, buf);
+        if (ret != 200)
+            throw MqttException(QString(buf));
+    } catch (MqttException &e) {
+        throw e;
     }
 
-    ui->lastTable->setItem(0, 0, new QTableWidgetItem(topic));
-    ui->lastTable->setItem(0, 1, new QTableWidgetItem(msg));
-    ui->lastTable->setItem(0, 2, new QTableWidgetItem(qos));
-    ui->lastTable->setItem(0, 3, new QTableWidgetItem(retain));
-    ui->lastTable->setItem(0, 4, new QTableWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss ddd")));
+    qDebug() << "response:" << buf;
+    MqttResponse response;
+    response.fromJson(buf);
+    qDebug() << response.broker;
+    qDebug() << response.companyID;
+
+    return response;
 }
-
-ConnectionWidget::~ConnectionWidget()
-{
-    if (m_clear != nullptr)
-        delete m_clear;
-    if (m_menu != nullptr)
-        delete m_menu;
-    if (m_model != nullptr)
-        delete m_model;
-    if (m_client != nullptr) {
-        m_client->disconnectFromHost();
-        delete m_client;
-    }
-
-    delete ui;
-}
-

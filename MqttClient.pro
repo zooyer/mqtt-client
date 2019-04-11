@@ -1,10 +1,10 @@
 #-------------------------------------------------
 #
-# Project created by QtCreator 2019-04-03T22:10:19
+# Project created by QtCreator 2019-04-08T13:36:59
 #
 #-------------------------------------------------
 
-QT       += core gui network qmqtt
+QT       += core gui network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -25,36 +25,50 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
         main.cpp \
-        mainwidget.cpp \
+        mainwindow.cpp \
+    about.cpp \
     connectionbutton.cpp \
     connectionwidget.cpp \
-    mqttsdkwidget.cpp \
-    mqttsdk.cpp \
     lineedit.cpp \
-    messageviewer.cpp
+    mqttwidget.cpp \
+    tabledelegate.cpp \
+    messageviewer.cpp \
+    mqttexception.cpp
 
 HEADERS += \
-        mainwidget.h \
+        mainwindow.h \
+    about.h \
     connectionbutton.h \
     connectionwidget.h \
-    mqttsdkwidget.h \
-    mqttsdk.h \
     lineedit.h \
-    messageviewer.h
+    mqttwidget.h \
+    tabledelegate.h \
+    messageviewer.h \
+    mqttexception.h
 
 FORMS += \
-        mainwidget.ui \
+        mainwindow.ui \
+    about.ui \
     connectionwidget.ui \
-    mqttsdkwidget.ui \
+    mqttwidget.ui \
     messageviewer.ui
 
-#win32:CONFIG(release, debug|release): LIBS += -L$$PWD/lib/ -lQt5Mqtt -lpaho-mqttpp3-static
-#else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/lib/ -lQt5Mqttd -lpaho-mqttpp3-static
+RESOURCES += \
+    res.qrc
+
+TRANSLATIONS += zh_cn.ts\
+                en_us.ts
+
+#win32:CONFIG(release, debug|release): LIBS += -L$$PWD/lib/ -lQt5Mqtt
+#else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/lib/ -lQt5Mqttd
 #else:unix: LIBS += -L$$PWD/lib/ -lQt5Mqtt
 
-win32:CONFIG(release, debug|release): LIBS += -L$$PWD/lib/ -lpaho-mqttpp3-static -lpaho-mqtt3as -lwsock32 -llibeay32 -lssleay32
-else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/lib/ -lpaho-mqttpp3-static -lpaho-mqtt3as -lwsock32 -llibeay32 -lssleay32
-else:unix: LIBS += -L$$PWD/lib/ -lpaho-mqttpp3-static
+#INCLUDEPATH += $$PWD/include
+#DEPENDPATH += $$PWD/include
 
-INCLUDEPATH += $$PWD/include
-DEPENDPATH += $$PWD/include
+win32:CONFIG(release, debug|release): LIBS += -LE:/SoftWare/Qt/Qt5.12.2/5.12.2/mingw73_64/lib/ -lQt5Mqtt
+else:win32:CONFIG(debug, debug|release): LIBS += -LE:/SoftWare/Qt/Qt5.12.2/5.12.2/mingw73_64/lib/ -lQt5Mqttd
+else:unix: LIBS += -LE:/SoftWare/Qt/Qt5.12.2/5.12.2/mingw73_64/lib/ -lQt5Mqtt
+
+INCLUDEPATH += E:/SoftWare/Qt/Qt5.12.2/5.12.2/mingw73_64/include
+DEPENDPATH += E:/SoftWare/Qt/Qt5.12.2/5.12.2/mingw73_64/include

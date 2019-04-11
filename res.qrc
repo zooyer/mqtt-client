@@ -1,0 +1,36 @@
+<RCC>
+    <qresource prefix="/">
+        <file>image/add.gif</file>
+        <file>image/add_gray.gif</file>
+        <file>image/clear.gif</file>
+        <file>image/connection.gif</file>
+        <file>image/connection_edit.gif</file>
+        <file>image/connection_gray.gif</file>
+        <file>image/default_persp.gif</file>
+        <file>image/defaultview_misc.gif</file>
+        <file>image/generic_element.gif</file>
+        <file>image/history.gif</file>
+        <file>image/lastmsg.gif</file>
+        <file>image/mqtt.gif</file>
+        <file>image/options.gif</file>
+        <file>image/paho.png</file>
+        <file>image/paho_logo.eps</file>
+        <file>image/paho_logo_100.png</file>
+        <file>image/paho_logo_400.png</file>
+        <file>image/paho_logo_full.png</file>
+        <file>image/paho-small.png</file>
+        <file>image/progress_error.gif</file>
+        <file>image/progress_none.gif</file>
+        <file>image/progress_ok.gif</file>
+        <file>image/remove.gif</file>
+        <file>image/remove_gray.gif</file>
+        <file>image/signed_unkn_tbl.gif</file>
+        <file>image/signed_yes_tbl.gif</file>
+        <file>image/stop.gif</file>
+        <file>image/trash.gif</file>
+        <file>image/product_plus.png</file>
+        <file>i18n/en_us.qm</file>
+        <file>i18n/zh_cn.qm</file>
+        <file>image/auth.gif</file>
+    </qresource>
+</RCC>

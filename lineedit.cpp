@@ -1,29 +1,17 @@
-﻿#include "lineedit.h"
-#include <QDebug>
+#include "lineedit.h"
 
-LineEdit::LineEdit(QString text, QWidget *parent) : QLineEdit(parent)
+LineEdit::LineEdit(QWidget *parent) : QLineEdit(parent)
 {
-    this->setText(text);
-    this->show();
-    connect(this, &LineEdit::returnPressed, [this](){
-        notifyDelete();
+    connect(this, &LineEdit::returnPressed, this, [this](){
+        focusOutEvent(nullptr);
     });
-    qDebug() << "create LineEdit!";
 }
 
-LineEdit::~LineEdit()
-{
-    qDebug() << "delete LineEdit!";
-}
-
-void LineEdit::focusOutEvent(QFocusEvent *)
-{
-    notifyDelete();
-}
-
-void LineEdit::notifyDelete()
+void LineEdit::focusOutEvent(QFocusEvent * e)
 {
     emit finish(text());
-    delete this;
-}
+    hide();
 
+    if (e != nullptr)
+        QLineEdit::focusOutEvent(e);
+}
