@@ -1,4 +1,4 @@
-#include "mainwindow.h"
+﻿#include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "about.h"
 #include "connectionbutton.h"
@@ -53,6 +53,9 @@ MainWindow::~MainWindow()
 
 void MainWindow::newConnection(bool isNative)
 {
+//    if (ui->title->parentWidget() != ui->scrollArea) {
+//        ui->title->setParent(ui->scrollArea);
+//    }
     ConnectionButton *conn = new ConnectionButton(ui->serverButtons);
     conn->setCheckable(true);
     conn->setText(QString("Connection %1").arg(++m_id));

@@ -11,7 +11,11 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MQTT Utility Beta v1.1.0</string>
+   <string>MQTT Utility Beta v1.0.1</string>
+  </property>
+  <property name="windowIcon">
+   <iconset resource="res.qrc">
+    <normaloff>:/image/mqtt-logo.png</normaloff>:/image/mqtt-logo.png</iconset>
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -109,6 +113,9 @@
            <height>16777215</height>
           </size>
          </property>
+         <property name="horizontalScrollBarPolicy">
+          <enum>Qt::ScrollBarAlwaysOff</enum>
+         </property>
          <property name="widgetResizable">
           <bool>true</bool>
          </property>
@@ -118,7 +125,7 @@
             <x>0</x>
             <y>0</y>
             <width>136</width>
-            <height>291</height>
+            <height>312</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="serversLayout">
@@ -138,7 +145,7 @@
             <number>0</number>
            </property>
            <item>
-            <widget class="QWidget" name="widget_3" native="true">
+            <widget class="QWidget" name="title" native="true">
              <property name="styleSheet">
               <string notr="true">background-color: rgb(255, 255, 255);</string>
              </property>
@@ -226,7 +233,7 @@
      <x>0</x>
      <y>0</y>
      <width>716</width>
-     <height>23</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu">

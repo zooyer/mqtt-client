@@ -32,5 +32,7 @@
         <file>i18n/en_us.qm</file>
         <file>i18n/zh_cn.qm</file>
         <file>image/auth.gif</file>
+        <file>image/mqtt-logo.png</file>
+        <file>LICENSE</file>
     </qresource>
 </RCC>
