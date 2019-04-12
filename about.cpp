@@ -1,6 +1,8 @@
 ﻿#include "about.h"
 #include "ui_about.h"
 #include "license.h"
+#include <QUrl>
+#include <QDesktopServices>
 
 About::About(QWidget *parent) :
     QDialog(parent),
@@ -12,6 +14,9 @@ About::About(QWidget *parent) :
     connect(ui->license, &QPushButton::clicked, this, [this](){
         License l(this);
         l.exec();
+    });
+    connect(ui->github, &QLabel::linkActivated, [](const QString& link){
+        QDesktopServices::openUrl(QUrl(link));
     });
 }
 

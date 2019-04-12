@@ -591,14 +591,16 @@ void ConnectionWidget::initTabOrder()
     setTabOrder(ui->subAdd, ui->subDelete);
     setTabOrder(ui->subDelete, ui->subClean);
     setTabOrder(ui->subClean, ui->topics);
-    setTabOrder(ui->topics, ui->topic);
+    setTabOrder(ui->topics, ui->subscribe);
+    setTabOrder(ui->subscribe, ui->unsubscribe);
+    setTabOrder(ui->unsubscribe, ui->topic);
     setTabOrder(ui->topic, ui->qos);
     setTabOrder(ui->qos, ui->retained);
     setTabOrder(ui->retained, ui->hex);
     setTabOrder(ui->hex, ui->message);
     setTabOrder(ui->message, ui->file);
     setTabOrder(ui->file, ui->publish);
-    setTabOrder(ui->publish, ui->uri);
+    setTabOrder(ui->publish, ui->tabWidget);
 }
 
 void ConnectionWidget::setOnlineStatus(bool flag)

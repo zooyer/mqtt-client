@@ -3,10 +3,11 @@
 
 #include <QWidget>
 #include <QMenu>
-#include <QtMqtt/QMqttClient>
+//#include <QtMqtt/QMqttClient>
 #include <QFileDialog>
 #include "tabledelegate.h"
 #include "mqttexception.h"
+#include "abstractmqtt.h"
 
 namespace Ui {
 class MqttWidget;
@@ -44,7 +45,8 @@ private:
     QMenu        *m_menu;
     QAction      *m_clear;
     TopicModel   *m_model;
-    QMqttClient  *m_client;
+    //QMqttClient  *m_client;
+    AbstractMqtt *m_client;
     MqttParams   *m_params;
     MqttRequest  *m_request;
     MqttResponse *m_response;

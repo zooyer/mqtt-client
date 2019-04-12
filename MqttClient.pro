@@ -34,7 +34,9 @@ SOURCES += \
     tabledelegate.cpp \
     messageviewer.cpp \
     mqttexception.cpp \
-    license.cpp
+    license.cpp \
+    qmqtt.cpp \
+    qtmqtt.cpp
 
 HEADERS += \
         mainwindow.h \
@@ -46,7 +48,10 @@ HEADERS += \
     tabledelegate.h \
     messageviewer.h \
     mqttexception.h \
-    license.h
+    license.h \
+    abstractmqtt.h \
+    qmqtt.h \
+    qtmqtt.h
 
 FORMS += \
         mainwindow.ui \
@@ -69,9 +74,16 @@ TRANSLATIONS += zh_cn.ts\
 #INCLUDEPATH += $$PWD/include
 #DEPENDPATH += $$PWD/include
 
-win32:CONFIG(release, debug|release): LIBS += -lQt5Mqtt
-else:win32:CONFIG(debug, debug|release): LIBS += -lQt5Mqttd
-else:unix: LIBS += -lQt5Mqtt
+win32:CONFIG(release, debug|release): LIBS += -L$$PWD/lib/ -lQt5Mqtt -lqmqtt
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/lib/ -lQt5Mqttd -lqmqttd
+else:unix: LIBS += -L$$PWD/lib/ -lQt5Mqtt -lqmqtt
 
 #INCLUDEPATH += E:/SoftWare/Qt/Qt5.12.2/5.12.2/mingw73_64/include
 #DEPENDPATH += E:/SoftWare/Qt/Qt5.12.2/5.12.2/mingw73_64/include
+
+#win32:CONFIG(release, debug|release): LIBS += -L$$PWD/lib/ -lqmqtt
+#else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/lib/ -lqmqttd
+#else:unix: LIBS += -L$$PWD/lib/ -lqmqtt
+
+#INCLUDEPATH += $$PWD/.
+#DEPENDPATH += $$PWD/.

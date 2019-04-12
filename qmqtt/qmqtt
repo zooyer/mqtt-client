@@ -1,0 +1,6 @@
+#ifndef QT_QMQTT_MODULE_H
+#define QT_QMQTT_MODULE_H
+#include <qmqtt/qmqttDepends>
+#include "qmqtt.h"
+#include "qmqttversion.h"
+#endif
