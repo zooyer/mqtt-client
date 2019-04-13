@@ -22,7 +22,7 @@
      <property name="currentIndex">
       <number>0</number>
      </property>
-     <widget class="QWidget" name="tab">
+     <widget class="QWidget" name="mqttWidget">
       <attribute name="icon">
        <iconset resource="res.qrc">
         <normaloff>:/image/mqtt.gif</normaloff>:/image/mqtt.gif</iconset>
@@ -32,7 +32,7 @@
       </attribute>
       <layout class="QHBoxLayout" name="horizontalLayout_3">
        <item>
-        <widget class="QWidget" name="widget_3" native="true">
+        <widget class="QWidget" name="connections" native="true">
          <property name="maximumSize">
           <size>
            <width>300</width>
@@ -53,7 +53,7 @@
            <number>0</number>
           </property>
           <item>
-           <widget class="QGroupBox" name="groupBox">
+           <widget class="QGroupBox" name="connection">
             <property name="minimumSize">
              <size>
               <width>0</width>
@@ -65,14 +65,14 @@
             </property>
             <layout class="QGridLayout" name="gridLayout">
              <item row="0" column="0" rowspan="2">
-              <widget class="QLabel" name="label">
+              <widget class="QLabel" name="uriTitle">
                <property name="text">
                 <string>Server URI</string>
                </property>
               </widget>
              </item>
              <item row="2" column="0">
-              <widget class="QLabel" name="label_2">
+              <widget class="QLabel" name="idTitle">
                <property name="text">
                 <string>Client ID</string>
                </property>
@@ -96,7 +96,7 @@
               </widget>
              </item>
              <item row="3" column="0">
-              <widget class="QLabel" name="label_3">
+              <widget class="QLabel" name="statusTitle">
                <property name="text">
                 <string>Status</string>
                </property>
@@ -123,24 +123,8 @@
                </property>
               </widget>
              </item>
-             <item row="4" column="0">
-              <spacer name="horizontalSpacer">
-               <property name="orientation">
-                <enum>Qt::Horizontal</enum>
-               </property>
-               <property name="sizeType">
-                <enum>QSizePolicy::Fixed</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>50</width>
-                 <height>17</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-             <item row="4" column="1">
-              <spacer name="horizontalSpacer_7">
+             <item row="4" column="0" colspan="2">
+              <spacer name="connectLeftSpacer">
                <property name="orientation">
                 <enum>Qt::Horizontal</enum>
                </property>
@@ -156,13 +140,13 @@
            </widget>
           </item>
           <item>
-           <widget class="QGroupBox" name="groupBox_2">
+           <widget class="QGroupBox" name="subscription">
             <property name="title">
              <string>Subscription</string>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_2">
              <item>
-              <widget class="QWidget" name="widget" native="true">
+              <widget class="QWidget" name="topicOptions" native="true">
                <layout class="QHBoxLayout" name="horizontalLayout">
                 <property name="leftMargin">
                  <number>0</number>
@@ -229,7 +213,7 @@
               <widget class="QTableView" name="topics"/>
              </item>
              <item>
-              <widget class="QWidget" name="widget_2" native="true">
+              <widget class="QWidget" name="subButtons" native="true">
                <layout class="QHBoxLayout" name="horizontalLayout_2">
                 <property name="leftMargin">
                  <number>0</number>
@@ -277,7 +261,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QGroupBox" name="groupBox_3">
+           <widget class="QGroupBox" name="publication">
             <property name="minimumSize">
              <size>
               <width>0</width>
@@ -328,21 +312,21 @@
               <widget class="QPlainTextEdit" name="message"/>
              </item>
              <item row="0" column="0">
-              <widget class="QLabel" name="label_4">
+              <widget class="QLabel" name="topicTitle">
                <property name="text">
                 <string>Topic</string>
                </property>
               </widget>
              </item>
              <item row="2" column="0">
-              <widget class="QLabel" name="label_6">
+              <widget class="QLabel" name="messageTitle">
                <property name="text">
                 <string>Message</string>
                </property>
               </widget>
              </item>
              <item row="1" column="0">
-              <widget class="QLabel" name="label_5">
+              <widget class="QLabel" name="qosTitle">
                <property name="text">
                 <string>QoS</string>
                </property>
@@ -382,9 +366,9 @@
         </widget>
        </item>
        <item>
-        <widget class="QTabWidget" name="tabWidget_2">
+        <widget class="QTabWidget" name="messageTableWidget">
          <property name="currentIndex">
-          <number>0</number>
+          <number>1</number>
          </property>
          <property name="usesScrollButtons">
           <bool>false</bool>
@@ -484,7 +468,7 @@
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="tab_2">
+     <widget class="QWidget" name="optionWidget">
       <attribute name="icon">
        <iconset resource="res.qrc">
         <normaloff>:/image/options.gif</normaloff>:/image/options.gif</iconset>
@@ -494,28 +478,28 @@
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_6">
        <item>
-        <widget class="QScrollArea" name="scrollArea">
+        <widget class="QScrollArea" name="optionsScrollArea">
          <property name="widgetResizable">
           <bool>true</bool>
          </property>
-         <widget class="QWidget" name="scrollAreaWidgetContents">
+         <widget class="QWidget" name="optionsScrollAreaWidgetContents">
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>-61</y>
+            <y>-209</y>
             <width>611</width>
             <height>702</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_8">
            <item>
-            <widget class="QGroupBox" name="groupBox_4">
+            <widget class="QGroupBox" name="generalSettings">
              <property name="title">
               <string>General</string>
              </property>
              <layout class="QGridLayout" name="gridLayout_3">
               <item row="3" column="0">
-               <widget class="QLabel" name="label_10">
+               <widget class="QLabel" name="lwtTitle">
                 <property name="text">
                  <string>Emable LWT</string>
                 </property>
@@ -546,7 +530,7 @@
                </widget>
               </item>
               <item row="9" column="3">
-               <widget class="QLabel" name="label_18">
+               <widget class="QLabel" name="directoryTitle">
                 <property name="text">
                  <string>Directory</string>
                 </property>
@@ -560,14 +544,14 @@
                </widget>
               </item>
               <item row="4" column="0">
-               <widget class="QLabel" name="label_11">
+               <widget class="QLabel" name="keepAliveTitle">
                 <property name="text">
                  <string>Keep Alive</string>
                 </property>
                </widget>
               </item>
               <item row="8" column="3">
-               <widget class="QLabel" name="label_17">
+               <widget class="QLabel" name="usernameTitle">
                 <property name="text">
                  <string>Username</string>
                 </property>
@@ -577,14 +561,14 @@
                <widget class="QLineEdit" name="password"/>
               </item>
               <item row="8" column="5">
-               <widget class="QLabel" name="label_19">
+               <widget class="QLabel" name="passwordTitle">
                 <property name="text">
                  <string>Password</string>
                 </property>
                </widget>
               </item>
               <item row="4" column="3">
-               <widget class="QLabel" name="label_16">
+               <widget class="QLabel" name="keepAliveSecondsTitle">
                 <property name="text">
                  <string>Seconds</string>
                 </property>
@@ -594,7 +578,7 @@
                <widget class="QLineEdit" name="username"/>
               </item>
               <item row="1" column="0">
-               <widget class="QLabel" name="label_8">
+               <widget class="QLabel" name="sslTitle">
                 <property name="text">
                  <string>Enable SSL</string>
                 </property>
@@ -608,7 +592,7 @@
                </widget>
               </item>
               <item row="0" column="0">
-               <widget class="QLabel" name="label_7">
+               <widget class="QLabel" name="cleanSessionTitle">
                 <property name="text">
                  <string>Clean Session</string>
                 </property>
@@ -622,7 +606,7 @@
                </widget>
               </item>
               <item row="2" column="0">
-               <widget class="QLabel" name="label_9">
+               <widget class="QLabel" name="haTitle">
                 <property name="text">
                  <string>Enable HA</string>
                 </property>
@@ -646,14 +630,14 @@
                <widget class="QSpinBox" name="timeout"/>
               </item>
               <item row="7" column="3">
-               <widget class="QLabel" name="label_15">
+               <widget class="QLabel" name="timeoutSecondsTitle">
                 <property name="text">
                  <string>Seconds</string>
                 </property>
                </widget>
               </item>
               <item row="7" column="0">
-               <widget class="QLabel" name="label_12">
+               <widget class="QLabel" name="timeoutTitle">
                 <property name="text">
                  <string>Connection Timeout</string>
                 </property>
@@ -663,14 +647,14 @@
                <widget class="QSpinBox" name="keepAlive"/>
               </item>
               <item row="8" column="0">
-               <widget class="QLabel" name="label_13">
+               <widget class="QLabel" name="loginTitle">
                 <property name="text">
                  <string>Enable Login</string>
                 </property>
                </widget>
               </item>
               <item row="9" column="0">
-               <widget class="QLabel" name="label_14">
+               <widget class="QLabel" name="persistenceTitle">
                 <property name="text">
                  <string>Enable Persistence</string>
                 </property>
@@ -680,13 +664,13 @@
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="groupBox_5">
+            <widget class="QGroupBox" name="sslSettings">
              <property name="title">
               <string>SSL Settings</string>
              </property>
              <layout class="QGridLayout" name="gridLayout_4">
               <item row="0" column="0">
-               <widget class="QLabel" name="label_20">
+               <widget class="QLabel" name="keyTitle">
                 <property name="text">
                  <string>Key Store Location</string>
                 </property>
@@ -710,7 +694,7 @@
                </widget>
               </item>
               <item row="1" column="0">
-               <widget class="QLabel" name="label_21">
+               <widget class="QLabel" name="keyPasswordTitle">
                 <property name="text">
                  <string>Key Store Password</string>
                 </property>
@@ -720,7 +704,7 @@
                <widget class="QLineEdit" name="keyPassword"/>
               </item>
               <item row="2" column="0">
-               <widget class="QLabel" name="label_22">
+               <widget class="QLabel" name="rustTitle">
                 <property name="text">
                  <string>Trust Store Location</string>
                 </property>
@@ -744,7 +728,7 @@
                </widget>
               </item>
               <item row="3" column="0">
-               <widget class="QLabel" name="label_23">
+               <widget class="QLabel" name="rustPasswordTitle">
                 <property name="text">
                  <string>Trust Store Password</string>
                 </property>
@@ -757,7 +741,7 @@
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="groupBox_6">
+            <widget class="QGroupBox" name="haSettings">
              <property name="minimumSize">
               <size>
                <width>0</width>
@@ -769,7 +753,7 @@
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_7">
               <item>
-               <widget class="QWidget" name="widget_4" native="true">
+               <widget class="QWidget" name="haOptions" native="true">
                 <layout class="QHBoxLayout" name="horizontalLayout_4">
                  <property name="leftMargin">
                   <number>0</number>
@@ -848,7 +832,7 @@
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="groupBox_7">
+            <widget class="QGroupBox" name="lwtSettings">
              <property name="title">
               <string>Last Will and Testament(LWT)</string>
              </property>
@@ -874,7 +858,7 @@
                </widget>
               </item>
               <item row="1" column="0">
-               <widget class="QLabel" name="label_25">
+               <widget class="QLabel" name="lwtQosTitle">
                 <property name="text">
                  <string>QoS</string>
                 </property>
@@ -888,14 +872,14 @@
                </widget>
               </item>
               <item row="3" column="0">
-               <widget class="QLabel" name="label_26">
+               <widget class="QLabel" name="lwtMessageTitle">
                 <property name="text">
                  <string>Message</string>
                 </property>
                </widget>
               </item>
               <item row="0" column="0">
-               <widget class="QLabel" name="label_24">
+               <widget class="QLabel" name="lwtTopicTitle">
                 <property name="text">
                  <string>Topic</string>
                 </property>

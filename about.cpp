@@ -11,7 +11,7 @@ About::About(QWidget *parent) :
     ui->setupUi(this);
     setWindowFlags(windowFlags() | Qt::WindowContextHelpButtonHint);
     connect(ui->okButton, &QPushButton::clicked, this, &About::close);
-    connect(ui->license, &QPushButton::clicked, this, [this](){
+    connect(ui->license, &QLabel::linkActivated, this, [this](){
         License l(this);
         l.exec();
     });

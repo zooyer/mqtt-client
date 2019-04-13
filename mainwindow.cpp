@@ -5,8 +5,10 @@
 #include "connectionwidget.h"
 #include "mqttwidget.h"
 
+#include <QComboBox>
 #include <QDialog>
 #include <QDebug>
+#include <QTranslator>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -17,6 +19,41 @@ MainWindow::MainWindow(QWidget *parent) :
     m_id = 0;
     m_group = new QButtonGroup(this);
     m_group->setExclusive(true);
+    m_menu = new QMenu(this);
+    m_new = new QAction(QIcon(":/image/add.gif"), tr("New Connection"), m_menu);
+    m_auth = new QAction(QIcon(":/image/auth.gif"), tr("New Auth Connection"), m_menu);
+
+    m_menu->addAction(m_new);
+    m_menu->addAction(m_auth);
+
+    ui->language->hide();
+    ui->languageTitle->hide();
+
+    connect(ui->language, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, [](int index){
+        qDebug() << "language changed:" << index;
+        static QTranslator translator;
+        QLocale locale;
+        switch (static_cast<Language>(index)) {
+        case Chinese:
+            qDebug() << "chinese....";
+            translator.load(QString(":/i18n/zh_cn.qm"));
+            qApp->installTranslator(&translator);
+            break;
+        case English:
+            qDebug() << "english....";
+            translator.load(QString(":/i18n/en_us.qm"));
+            qApp->installTranslator(&translator);
+            break;
+        }
+    });
+    //connect(ui, &MainWind)
+
+    connect(m_new, &QAction::triggered, [this](){
+        newConnection(true);
+    });
+    connect(m_auth, &QAction::triggered, [this](){
+        newConnection(false);
+    });
 
     connect(ui->actionabout, &QAction::triggered, [this](){
         qDebug() << "clicked about button, will enter about widget.";
@@ -65,9 +102,9 @@ void MainWindow::newConnection(bool isNative)
     QWidget *w;
 
     if (isNative) {
-        w = new ConnectionWidget(conn);
+        w = new ConnectionWidget();
     } else {
-        w = new MqttWidget(conn);
+        w = new MqttWidget();
     }
 
     conn->setWidget(w);
@@ -98,4 +135,31 @@ void MainWindow::newConnection(bool isNative)
     });
 
     conn->clicked();
+}
+
+void MainWindow::mouseReleaseEvent(QMouseEvent *e)
+{
+    if (e->button() == Qt::RightButton) {
+        if (ui->serverButtons->rect().contains(e->pos())) {
+            m_menu->exec(QCursor::pos());
+        }
+    }
+
+    QMainWindow::mouseReleaseEvent(e);
+}
+
+void MainWindow::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::LanguageChange) {
+        qDebug() << "in chagne event...";
+        ui->retranslateUi(this);
+        return;
+    }
+
+    QMainWindow::changeEvent(event);
+}
+
+void MainWindow::setCurrentLanguage(const MainWindow::Language &lang)
+{
+    ui->language->setCurrentIndex(lang);
 }

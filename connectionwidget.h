@@ -1,8 +1,9 @@
-#ifndef CONNECTIONWIDGET_H
+﻿#ifndef CONNECTIONWIDGET_H
 #define CONNECTIONWIDGET_H
 
 #include <QMenu>
 #include <QWidget>
+#include <QSslSocket>
 #include <QtMqtt/QMqttClient>
 #include "tabledelegate.h"
 
@@ -31,6 +32,7 @@ private:
     QAction      *m_clear;
     TopicModel   *m_model;
     QMqttClient  *m_client;
+    QSslSocket   *m_ssl;
 };
 
 #endif // CONNECTIONWIDGET_H

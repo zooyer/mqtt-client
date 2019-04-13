@@ -3,7 +3,7 @@
 #include "tabledelegate.h"
 #include "messageviewer.h"
 //#include "qmqtt.h"
-#include "qtmqtt.h"
+//#include "qtmqtt.h"
 
 #include <QNetworkRequest>
 #include <QNetworkAccessManager>
@@ -19,8 +19,8 @@
 #include <QSslKey>
 #include <QSslConfiguration>
 #include <QAbstractSocket>
-//#include <QtMqtt/QMqttMessage>
-//#include <QtMqtt/QMqttSubscription>
+#include <QtMqtt/QMqttMessage>
+#include <QtMqtt/QMqttSubscription>
 
 class MqttRequest
 {
@@ -154,9 +154,9 @@ MqttWidget::MqttWidget(QWidget *parent) :
     m_params = new MqttParams;
     m_request = new MqttRequest;
     m_response = new MqttResponse;
-    //m_client = new QMqttClient;
+    m_client = new QMqttClient;
+    m_ssl = new QSslSocket;
     //m_client = new QMqtt(this);
-    m_client = new QtMqtt(this);
 
     // connection button init.
     m_menu = new QMenu(ui->historyTable);
@@ -203,11 +203,11 @@ MqttWidget::MqttWidget(QWidget *parent) :
     QosDelegate *qosDelegate = new QosDelegate(ui->topics);
     ui->topics->setItemDelegateForColumn(2, qosDelegate);
 
-    // init signal connect.
-    initConnect();
-
     // init  mqtt events.
     initMqttEvents();
+
+    // init signal connect.
+    initConnect();
 
     // init status.
     initStatus();
@@ -244,7 +244,7 @@ void MqttWidget::initConnect()
             ui->sk->setText(fileName);
     });
     connect(ui->connect, &QPushButton::clicked, [this](){
-        if (m_client->status() == AbstractMqtt::Connected) {
+        if (m_client->state() == QMqttClient::Connected) {
             return;
         }
 
@@ -261,39 +261,41 @@ void MqttWidget::initConnect()
             return;
         }
 
+        QString hostname = m_response->broker;
 
-        if (m_response->broker.contains("ssl")) {
-            //QSslConfiguration sslConf = QSslConfiguration::defaultConfiguration();
-            QSslConfiguration sslConf;
-            QList<QSslCertificate> certs = QSslCertificate::fromPath("server.crt");
-            qDebug() << "certs count:" << certs.length();
-            if (certs.length() > 0)
-                qDebug() << "certs[0] : " << certs[0].toPem();
-            sslConf.setCaCertificates(certs);
-            sslConf.setPeerVerifyMode(QSslSocket::VerifyNone);
-            sslConf.setProtocol(QSsl::AnyProtocol);
-
-            m_client->setSslConfiguration(sslConf);
-        }
-
-        qDebug() << "broker:" << m_response->broker;
-
-        QString broker = QString("%1:%2").arg(m_response->broker).arg(m_response->port);
-        m_client->setBroker(broker);
-        qDebug() << "broker:" << broker;
-        //m_client->setHostname(broker.replace("tcp://", "").replace("ssl://", ""));
-        //m_client->setPort(static_cast<quint16>(m_response->port));
+        m_client->setHostname(hostname.replace("tcp://", "").replace("ssl://", ""));
+        m_client->setPort(static_cast<quint16>(m_response->port));
         m_client->setCleanSession(m_response->cleanSession);
         m_client->setClientId(m_response->clientID);
         m_client->setKeepAlive(static_cast<quint16>(m_response->keepAlive));
         m_client->setUsername(m_response->deviceID);
         m_client->setPassword(m_response->secretKey.toLocal8Bit());
 
+        if (m_response->broker.contains("ssl")) {
+
+            QSslConfiguration sslConfig = QSslConfiguration::defaultDtlsConfiguration();
+            auto certs = QSslCertificate::fromPath("server.crt");
+            sslConfig.setCaCertificates(certs);
+            sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
+            sslConfig.setProtocol(QSsl::AnyProtocol);
+
+            m_ssl->setSslConfiguration(sslConfig);
+            m_client->setTransport(m_ssl, QMqttClient::SecureSocket);
+
+            m_ssl->connectToHostEncrypted(m_client->hostname(), m_client->port());
+            if (!m_ssl->waitForEncrypted(5000)) {
+                qDebug() << "wait tls connect false.";
+                addHistory(tr("Error"), "", "tls connection timeout", "", "");
+            }
+
+            qDebug() << "setting ssl configuration.";
+        }
+
         m_client->connectToHost();
-        //qDebug() << "connect to host:" << m_client->hostname() << "port:" << m_client->port();
+        qDebug() << "connect to host:" << m_client->hostname() << "port:" << m_client->port();
     });
     connect(ui->disconnect, &QPushButton::clicked, [this](){
-        if (m_client->status() != AbstractMqtt::Disconnected) {
+        if (m_client->state() != QMqttClient::Disconnected) {
             m_client->disconnectFromHost();
         }
     });
@@ -337,20 +339,20 @@ void MqttWidget::initConnect()
         ui->subClean->setEnabled(false);
     });
     connect(ui->subscribe, &QPushButton::clicked, [this](){
-        if (m_client->status() == AbstractMqtt::Connected) {
+        if (m_client->state() == QMqttClient::Connected) {
             for (int i=0; i<m_model->rowCount(); i++) {
                 if (m_model->item(i)->checkState() == Qt::Checked) {
                     QString topic = m_model->item(i, 1)->data(Qt::EditRole).toString();
                     quint8 qos = static_cast<quint8>(m_model->item(i, 2)->data(Qt::EditRole).toString().toUShort());
                     m_client->subscribe(topic, qos);
+                    addHistory(tr("Subscribe"), topic, "", QString("%1").arg(qos), "");
                     qDebug() << "subscribe topic:" << topic << "qos:" << qos;
-                    //m_client->subscribe(QMqttTopicFilter(ui->topic->text()), (quint8)ui->qos->currentIndex());
                 }
             }
         }
     });
     connect(ui->unsubscribe, &QPushButton::clicked, [this](){
-        if (m_client->status() == AbstractMqtt::Connected) {
+        if (m_client->state() == QMqttClient::Connected) {
             for (int i=0; i<m_model->rowCount(); i++) {
                 if (m_model->item(i)->checkState() == Qt::Checked) {
                     QString topic = m_model->item(i, 1)->data(Qt::EditRole).toString();
@@ -394,12 +396,12 @@ void MqttWidget::initConnect()
         }
     });
     connect(ui->publish, &QPushButton::clicked, [this](){
-        if (m_client->status() == AbstractMqtt::Connected) {
+        if (m_client->state() == QMqttClient::Connected) {
             QString topic = ui->topic->text();
             QByteArray message = ui->message->toPlainText().toLocal8Bit();
             quint8 qos = static_cast<quint8>(ui->qos->currentIndex());
             bool retained = ui->retained->isChecked();
-            m_client->publish(topic, qos, message, retained);
+            m_client->publish(QMqttTopicName(topic), message, qos, retained);
             addHistory(tr("Publish"), topic, message, QString("%1").arg(qos), retained ? "Yes" : "No");
             qDebug() << "publish topic:" << topic << "qos:" << qos << "retained:" << retained << "message:" << message;
         }
@@ -430,31 +432,31 @@ void MqttWidget::initConnect()
 
 void MqttWidget::initMqttEvents()
 {
-    connect(m_client, &AbstractMqtt::connected, [this](){
+    connect(m_client, &QMqttClient::connected, [this](){
         qDebug() << "client connected.";
         addHistory(tr("Connection"), "", "", "", "");
     });
 
-    connect(m_client, &AbstractMqtt::disconnected, [this](){
+    connect(m_client, &QMqttClient::disconnected, [this](){
         qDebug() << "client disconnected.";
         addHistory(tr("Disconnection"), "", "", "", "");
     });
 
-    connect(m_client, &AbstractMqtt::statusChanged, [this](AbstractMqtt::MqttStatus status){
-        qDebug() << "client state changed:" << status;
-        switch (status) {
-        case AbstractMqtt::Disconnected:
+    connect(m_client, &QMqttClient::stateChanged, [this](QMqttClient::ClientState state){
+        qDebug() << "client state changed:" << state;
+        switch (state) {
+        case QMqttClient::Disconnected:
             setOnlineStatus(false);
             ui->state->setText(tr("Disconnected"));
             ui->state->setStyleSheet("QLineEdit{background:transparent;}");
             break;
-        case AbstractMqtt::Connecting:
+        case QMqttClient::Connecting:
             ui->connect->setEnabled(false);
             ui->disconnect->setEnabled(true);
             ui->state->setText(tr("Connecting"));
             ui->state->setStyleSheet("QLineEdit{background:transparent;}");
             break;
-        case AbstractMqtt::Connected:
+        case QMqttClient::Connected:
             setOnlineStatus(true);
             ui->state->setText(tr("Connected"));
             ui->state->setStyleSheet("QLineEdit{color:green;background:transparent;}");
@@ -462,34 +464,34 @@ void MqttWidget::initMqttEvents()
         }
     });
 
-    connect(m_client, &AbstractMqtt::errorChanged, [this](QString error){
+    connect(m_client, &QMqttClient::errorChanged, [this](QMqttClient::ClientError error){
         qWarning() << "mqtt error event:" << error;
-        addHistory(tr("Error"), "", error, "", "");
+        addHistory(tr("Error"), "", QString("error:%1").arg(error), "", "");
     });
 
-    connect(m_client, &AbstractMqtt::subscribed, [this](const QString topic, const quint8 qos){
-        qDebug() << "subscribed topic:" << topic << "qos:" << qos;
-        addHistory("Subscribed", topic, "", QString("%1").arg(qos), "");
-    });
+//    connect(m_client, &QMqttClient::subscribed, [this](const QString topic, const quint8 qos){
+//        qDebug() << "subscribed topic:" << topic << "qos:" << qos;
+//        addHistory("Subscribed", topic, "", QString("%1").arg(qos), "");
+//    });
 
-    connect(m_client, &AbstractMqtt::unsubscribed, [this](const QString topic){
-        qDebug() << "unsubscribed topic:" << topic;
-        addHistory("Unsubscribed", topic, "", "", "");
-    });
+//    connect(m_client, &QMqttClient::unsubscribed, [this](const QString topic){
+//        qDebug() << "unsubscribed topic:" << topic;
+//        addHistory("Unsubscribed", topic, "", "", "");
+//    });
 
-    connect(m_client, &AbstractMqtt::received, [this](const QString topic, const quint8 qos, const QByteArray payload, const bool retain){
-        qDebug() << "received message, topic:" << topic << "payload:" << payload;
+    connect(m_client, &QMqttClient::messageReceived, [this](const QByteArray &message, const QMqttTopicName &topic){
+        qDebug() << "received message, topic:" << topic.name() << "payload:" << message;
         Q_UNUSED(this);
-        addHistory(tr("Received"), topic, payload, QString("%1").arg(qos), retain ? "Yes" : "No");
-        //addHistory(tr("Received"), topic.name(), message, "", "");
+        //addHistory(tr("Received"), topic, payload, QString("%1").arg(qos), retain ? "Yes" : "No");
+        addHistory(tr("Received"), topic.name(), message, "", "");
     });
 
-    connect(m_client, &AbstractMqtt::published, [this](const QString topic, const quint8 qos, const QByteArray payload, const bool retain){
-        qDebug() << "published message, topic:" << topic << "payload:" << payload;
-        Q_UNUSED(this);
-        //addHistory(tr("Sent"), "", "", "", "");
-        addHistory(tr("Published"), topic, payload, QString("%1").arg(qos), retain ? "Yes" : "No");
-    });
+//    connect(m_client, &QMqttClient::published, [this](const QString topic, const quint8 qos, const QByteArray payload, const bool retain){
+//        qDebug() << "published message, topic:" << topic << "payload:" << payload;
+//        Q_UNUSED(this);
+//        //addHistory(tr("Sent"), "", "", "", "");
+//        addHistory(tr("Published"), topic, payload, QString("%1").arg(qos), retain ? "Yes" : "No");
+//    });
 }
 
 void MqttWidget::initStatus()

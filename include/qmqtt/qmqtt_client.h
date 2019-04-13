@@ -1,4 +1,4 @@
-/*
+﻿/*
  * qmqtt_client.h - qmqtt client header
  *
  * Copyright (c) 2013  Ery Lee <ery.lee at gmail dot com>

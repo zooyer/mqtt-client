@@ -7,7 +7,9 @@
 #include <QFileDialog>
 #include <QStringList>
 #include <QUuid>
+#include <QSslKey>
 #include <QSslSocket>
+#include <QSslConfiguration>
 #include <QtMqtt/QMqttMessage>
 #include <QtMqtt/QMqttSubscription>
 
@@ -18,6 +20,7 @@ ConnectionWidget::ConnectionWidget(QWidget *parent) :
     ui->setupUi(this);
 
     m_client = new QMqttClient;
+    m_ssl = new QSslSocket;
 
     // connection button init.
     m_menu = new QMenu(ui->historyTable);
@@ -83,17 +86,17 @@ ConnectionWidget::ConnectionWidget(QWidget *parent) :
     ui->servers->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     ui->servers->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
 
-    // init signal connect.
-    initConnect();
-
-    // init mqtt events.
-    initMqttEvents();
-
     // init status
     initStatus();
 
     // init tab order
     initTabOrder();
+
+    // init mqtt events.
+    initMqttEvents();
+
+    // init signal connect.
+    initConnect();
 
     // test
     //addHistory("add", "tttt", "sss", "aa", "aaaa");
@@ -126,16 +129,47 @@ void ConnectionWidget::initConnect()
 
         // ssl
         if (ui->ssl->isChecked()) {
-//            QSslSocket ssl;
-//            ssl.setPeerVerifyMode(QSslSocket::VerifyNone);
-//            QSslConfiguration config;
-//            m_client->setTransport(&ssl, QMqttClient::AbstractSocket);
-//            m_client->setConnectionProperties(QMqttConnectionProperties());
-            qDebug() << "not support ssl.";
+            QSslConfiguration sslConfig = QSslConfiguration::defaultConfiguration();
+            QSslCertificate certificate;
+            QSslKey key;
+            QList<QSslCertificate> importedCerts;
+
+            QFile trustFile(ui->trust->text());
+            QFile keyFile(ui->key->text());
+
+            if (keyFile.open(QFile::ReadOnly)) {
+                QSslCertificate::importPkcs12(&keyFile, &key, &certificate, &importedCerts, ui->keyPassword->text().toLocal8Bit());
+                keyFile.close();
+                sslConfig.setLocalCertificateChain(importedCerts);
+//                m_ssl->setCaCertificates();
+//                m_ssl->setProtocol();
+                importedCerts.clear();
+            }
+
+
+            if (trustFile.open(QFile::ReadOnly)) {
+                QSslCertificate::importPkcs12(&trustFile, &key, &certificate, &importedCerts, ui->trustPassword->text().toLocal8Bit());
+                trustFile.close();
+                sslConfig.setCaCertificates(importedCerts);
+                sslConfig.setLocalCertificate(certificate);
+                sslConfig.setPrivateKey(key);
+            }
+
+            sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
+            sslConfig.setProtocol(QSsl::AnyProtocol);
+            m_ssl->setSslConfiguration(sslConfig);
+            m_client->setTransport(m_ssl, QMqttClient::SecureSocket);
+            m_ssl->connectToHostEncrypted(m_client->hostname(), m_client->port());
+            if (!m_ssl->waitForEncrypted()) {
+                qDebug() << "wait tls connection false";
+                addHistory(tr("Error"), "", "wait tls connection failed", "", "");
+            }
+            m_client->connectToHostEncrypted();
         }
         // HA
         if (ui->ha->isChecked()) {
             qDebug() << "not support HA.";
+            addHistory(tr("Error"), "", "not support HA", "", "");
         }
         // login
         if (ui->login->isChecked()) {
@@ -149,9 +183,10 @@ void ConnectionWidget::initConnect()
             m_client->setWillRetain(ui->lwtRetained->isChecked());
             m_client->setWillMessage(ui->lwtMessage->toPlainText().toLocal8Bit());
         }
+        if (m_client->state() == QMqttClient::Disconnected) {
+            m_client->connectToHost();
+        }
 
-        m_client->connectToHost();
-        //m_client->connectToHostEncrypted();
         qDebug() << "connect to host:" << m_client->hostname() << "port:" << m_client->port();
     });
     connect(ui->disconnect, &QPushButton::clicked, [this](){
@@ -214,6 +249,7 @@ void ConnectionWidget::initConnect()
                         connect(subscription, &QMqttSubscription::messageReceived, [this](QMqttMessage msg){
                             qDebug() << "received message, topic:" << msg.topic().name() << "payload:" << msg.payload();
                             addHistory(tr("Received"), msg.topic().name(), msg.payload(), QString("%1").arg(msg.qos()), msg.retain() ? "Yes" : "No");
+                            setLastMessage(msg.topic().name(), msg.payload(), QString("%1").arg(msg.qos()), msg.retain() ? "Yes" : "No");
                         });
                     }
                 }
@@ -495,9 +531,9 @@ void ConnectionWidget::initMqttEvents()
 */
 
     connect(m_client, &QMqttClient::messageReceived, [this](const QByteArray &message, const QMqttTopicName &topic){
-        qDebug() << "received message, topic:" << topic.name() << "payload:" << message;
-        //addHistory(tr("Received"), topic.name(), message, "", "");
-        //setLastMessage(topic.name(), message, "", "");
+        qDebug() << "default received message, topic:" << topic.name() << "payload:" << message;
+        addHistory(tr("Received"), topic.name(), message, "", "");
+        setLastMessage(topic.name(), message, "", "");
         Q_UNUSED(this);
     });
 
@@ -529,7 +565,7 @@ void ConnectionWidget::initStatus()
 
     // set history table and last message table current index is zero.
     ui->tabWidget->setCurrentIndex(0);
-    ui->tabWidget_2->setCurrentIndex(0);
+    ui->messageTableWidget->setCurrentIndex(0);
 
     ui->uri->setEnabled(true);
     ui->id->setEnabled(true);

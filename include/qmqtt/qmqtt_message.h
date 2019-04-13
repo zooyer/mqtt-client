@@ -1,4 +1,4 @@
-/*
+﻿/*
  * qmqtt_message.h - qmqtt message header
  *
  * Copyright (c) 2013  Ery Lee <ery.lee at gmail dot com>

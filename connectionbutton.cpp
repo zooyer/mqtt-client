@@ -88,6 +88,7 @@ void ConnectionButton::mouseReleaseEvent(QMouseEvent *e)
         qDebug() << "the release button is right.";
         m_menu->move(e->globalPos());
         m_menu->show();
+        return;
     }
 
     QPushButton::mouseReleaseEvent(e);
