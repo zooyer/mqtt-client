@@ -532,8 +532,8 @@ void ConnectionWidget::initMqttEvents()
 
     connect(m_client, &QMqttClient::messageReceived, [this](const QByteArray &message, const QMqttTopicName &topic){
         qDebug() << "default received message, topic:" << topic.name() << "payload:" << message;
-        addHistory(tr("Received"), topic.name(), message, "", "");
-        setLastMessage(topic.name(), message, "", "");
+        //addHistory(tr("Received"), topic.name(), message, "", "");
+        //setLastMessage(topic.name(), message, "", "");
         Q_UNUSED(this);
     });
 

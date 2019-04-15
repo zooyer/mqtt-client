@@ -344,9 +344,18 @@ void MqttWidget::initConnect()
                 if (m_model->item(i)->checkState() == Qt::Checked) {
                     QString topic = m_model->item(i, 1)->data(Qt::EditRole).toString();
                     quint8 qos = static_cast<quint8>(m_model->item(i, 2)->data(Qt::EditRole).toString().toUShort());
-                    m_client->subscribe(topic, qos);
-                    addHistory(tr("Subscribe"), topic, "", QString("%1").arg(qos), "");
-                    qDebug() << "subscribe topic:" << topic << "qos:" << qos;
+                    auto subscription = m_client->subscribe(topic, qos);
+                    if (!subscription) {
+                        qWarning() << "Subscribe Error:" << "Could not subscribe. Is there a valid connection?";
+                        addHistory("Error", topic, "Could not subscribe. Is there a valid connection?", QString("%1").arg(qos), "");
+                    } else {
+                        qDebug() << "subscribe topic:" << topic << "qos:" << qos;
+                        addHistory(tr("Subscribe"), topic, "", QString("%1").arg(qos), "");
+                        connect(subscription, &QMqttSubscription::messageReceived, [this](QMqttMessage msg){
+                            qDebug() << "received message, topic:" << msg.topic().name() << "payload:" << msg.payload();
+                            addHistory(tr("Received"), msg.topic().name(), msg.payload(), QString("%1").arg(msg.qos()), msg.retain() ? "Yes" : "No");
+                        });
+                    }
                 }
             }
         }
@@ -483,7 +492,7 @@ void MqttWidget::initMqttEvents()
         qDebug() << "received message, topic:" << topic.name() << "payload:" << message;
         Q_UNUSED(this);
         //addHistory(tr("Received"), topic, payload, QString("%1").arg(qos), retain ? "Yes" : "No");
-        addHistory(tr("Received"), topic.name(), message, "", "");
+        //addHistory(tr("Received"), topic.name(), message, "", "");
     });
 
 //    connect(m_client, &QMqttClient::published, [this](const QString topic, const quint8 qos, const QByteArray payload, const bool retain){
