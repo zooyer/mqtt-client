@@ -6,7 +6,7 @@
 
 QT       += core gui network
 
-VERSION   = 1.0.1
+VERSION   = 1.0.2
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 

@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MQTT Utility Beta v1.0.1</string>
+   <string>MQTT Utility Beta v1.0.2</string>
   </property>
   <property name="windowIcon">
    <iconset resource="res.qrc">
